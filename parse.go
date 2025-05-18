@@ -11,7 +11,7 @@ import (
 )
 
 // Parse parse html to struct
-func (p *Pagser) Parse(v interface{}, document string) (err error) {
+func (p *Pagser) Parse(v interface{}, document string) error {
 	reader, err := goquery.NewDocumentFromReader(strings.NewReader(document))
 	if err != nil {
 		return err
@@ -20,7 +20,7 @@ func (p *Pagser) Parse(v interface{}, document string) (err error) {
 }
 
 // ParseReader parse html to struct
-func (p *Pagser) ParseReader(v interface{}, reader io.Reader) (err error) {
+func (p *Pagser) ParseReader(v interface{}, reader io.Reader) error {
 	doc, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
 		return err
@@ -29,27 +29,31 @@ func (p *Pagser) ParseReader(v interface{}, reader io.Reader) (err error) {
 }
 
 // ParseDocument parse document to struct
-func (p *Pagser) ParseDocument(v interface{}, document *goquery.Document) (err error) {
+func (p *Pagser) ParseDocument(v interface{}, document *goquery.Document) error {
 	return p.ParseSelection(v, document.Selection)
 }
 
 // ParseSelection parse selection to struct
-func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) (err error) {
+func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) error {
 	val := reflect.ValueOf(v)
+
+	// Check value is a pointer
 	if val.Kind() != reflect.Ptr {
 		return fmt.Errorf("%v is non-pointer", val.Type())
 	}
 
+	// Check pointer is not nil
 	if val.IsNil() {
 		return fmt.Errorf("%v is nil", val.Type())
 	}
 
+	// Check underlying type is a struct
 	elem := val.Elem()
-
 	if elem.Kind() != reflect.Struct {
 		return fmt.Errorf("%v is not a struct", elem.Type())
 	}
 
+	// Parse into pointer value
 	return p.doParse(val, nil, selection)
 }
 
@@ -83,14 +87,16 @@ func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, 
 		val.Set(newPtr)
 	}
 
+	// Parse into underlying value
 	err := p.doParse(reflect.Indirect(val), stackValues, selection)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
-func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
 	for i := 0; i < val.NumField(); i++ {
 		fieldValue := val.Field(i)
 		fieldType := val.Type().Field(i)
@@ -110,6 +116,7 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 
 		cacheTag, ok := p.mapTags.Load(tagValue)
 		var tag *tagTokenizer
+		var err error
 		if !ok || cacheTag == nil {
 			tag, err = p.newTag(tagValue)
 			if err != nil {
@@ -159,9 +166,9 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 	return nil
 }
 
-func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
 	newSlice := reflect.MakeSlice(val.Type(), selection.Size(), selection.Size())
-
+	var err error
 	selection.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
 		// Do parse on slice item
 		itemValue := newSlice.Index(i)
