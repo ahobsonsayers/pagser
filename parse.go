@@ -53,15 +53,6 @@ func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) (er
 	return p.doParse(val, nil, selection)
 }
 
-func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
-	err = p.doParse(reflect.Indirect(val), stackValues, selection)
-	if err != nil {
-		return err
-		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
-	}
-	return nil
-}
-
 // ParseSelection parse selection to struct
 func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
 	switch val.Kind() {
@@ -188,6 +179,15 @@ func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selecti
 		default:
 			fieldValue.SetString(strings.TrimSpace(node.Text()))
 		}
+	}
+	return nil
+}
+
+func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+	err = p.doParse(reflect.Indirect(val), stackValues, selection)
+	if err != nil {
+		return err
+		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 	}
 	return nil
 }
