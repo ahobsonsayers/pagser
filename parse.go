@@ -75,8 +75,11 @@ func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selecti
 	return nil
 }
 
-func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
-	err = p.doParse(reflect.Indirect(val), stackValues, selection)
+func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
+	// newPtr := reflect.New(val.Type().Elem())
+	// val.Set(newPtr)
+
+	err := p.doParse(reflect.Indirect(val), stackValues, selection)
 	if err != nil {
 		return err
 		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
@@ -145,64 +148,16 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 		}
 		stackValues = append(stackValues, val)
 
-		// set value
 		switch {
-		case fieldKind == reflect.Ptr:
+		case fieldKind == reflect.Pointer:
 			subModel := reflect.New(fieldType.Type.Elem())
 			fieldValue.Set(subModel)
 			err = p.doParse(subModel, stackValues, node)
-			if err != nil {
-				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
-			}
-			// Slice
-		case fieldKind == reflect.Slice:
-			sliceType := fieldValue.Type()
-			itemType := sliceType.Elem()
-			itemKind := itemType.Kind()
-			slice := reflect.MakeSlice(sliceType, node.Size(), node.Size())
-			node.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
-				// outhtml, _ := goquery.OuterHtml(subNode)
-				// log.Printf("%v => %v", i, outhtml)
-				itemValue := reflect.New(itemType).Elem()
-				switch {
-				case itemKind == reflect.Struct:
-					err = p.doParse(itemValue.Addr(), stackValues, subNode)
-					if err != nil {
-						err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
-						return false
-					}
-				case itemKind == reflect.Ptr && itemValue.Type().Elem().Kind() == reflect.Struct:
-					itemValue = reflect.New(itemType.Elem())
-					err = p.doParse(itemValue, stackValues, subNode)
-					if err != nil {
-						err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
-						return false
-					}
-				default:
-					itemValue.SetString(strings.TrimSpace(subNode.Text()))
-				}
-				slice.Index(i).Set(itemValue)
-				return true
-			})
-			if err != nil {
-				return err
-			}
-			fieldValue.Set(slice)
-		case fieldKind == reflect.Struct:
-			subModel := reflect.New(fieldType.Type)
-			err = p.doParse(subModel, stackValues, node)
-			if err != nil {
-				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
-			}
-			fieldValue.Set(subModel.Elem())
-			// UnsafePointer
-			// Complex64
-			// Complex128
-			// Array
-			// Chan
-			// Func
 		default:
-			fieldValue.SetString(strings.TrimSpace(node.Text()))
+			err = p.doParse(fieldValue, stackValues, node)
+		}
+		if err != nil {
+			return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, fieldValue, err)
 		}
 	}
 	return nil
