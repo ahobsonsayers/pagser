@@ -1,6 +1,7 @@
 package pagser
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/stretchr/testify/require"
 )
 
 const rawParseHtml = `
@@ -68,6 +70,224 @@ const rawParseHtml = `
 </html>
 `
 
+const expectedParseDataJson = `
+{
+  "Title": "Pagser Example",
+  "Keywords": [
+    "golang",
+    "pagser",
+    "goquery",
+    "html",
+    "page",
+    "parser",
+    "colly"
+  ],
+  "H1": "Pagser H1 Title",
+  "H1Text": "Pagser H1 Title",
+  "H1TextEmpty": "Pagser H1 Title",
+  "TextEmptyNoData": "nodata",
+  "H1Html": "<u>Pagser</u> H1 Title",
+  "H1OutHtml": "<h1><u>Pagser</u> H1 Title</h1>",
+  "SameFuncValue": "Struct-Same-Func-Pagser H1 Title",
+  "MyGlobalFuncValue": "Global-Pagser H1 Title",
+  "MyStructFuncValue": "Struct-Pagser H1 Title",
+  "FillFieldFuncValue": "FillFieldFunc-Pagser H1 Title",
+  "FillFieldOtherValue": "This value is set by the FillFieldFunc() function -Pagser H1 Title",
+  "NavList": [
+    {
+      "ID": -1,
+      "Link": {"Name": "Index", "Url": "/", "AbsUrl": "https://thisvar.com/"},
+      "LinkHtml": "Index",
+      "ParentFuncName": "ParentFunc-Index"
+    },
+    {
+      "ID": 2,
+      "Link": {
+        "Name": "Web page",
+        "Url": "/list/web",
+        "AbsUrl": "https://thisvar.com/list/web"
+      },
+      "LinkHtml": "Web page",
+      "ParentFuncName": "ParentFunc-Web page"
+    },
+    {
+      "ID": 3,
+      "Link": {
+        "Name": "Pc Page",
+        "Url": "/list/pc",
+        "AbsUrl": "https://thisvar.com/list/pc"
+      },
+      "LinkHtml": "Pc Page",
+      "ParentFuncName": "ParentFunc-Pc Page"
+    },
+    {
+      "ID": 4,
+      "Link": {
+        "Name": "Mobile Page",
+        "Url": "/list/mobile",
+        "AbsUrl": "https://thisvar.com/list/mobile"
+      },
+      "LinkHtml": "Mobile Page",
+      "ParentFuncName": "ParentFunc-Mobile Page"
+    }
+  ],
+  "NavFirst": {"ID": 0, "Name": "Index", "Url": "/"},
+  "NavLast": {"ID": 4, "Name": "Mobile Page", "Url": "/list/mobile"},
+  "SubStruct": {
+    "Label": "",
+    "Values": ["pagser@foolin.github", "pagser@foolin.github"]
+  },
+  "SubPtrStruct": {"Label": "", "Values": []},
+  "NavFirstID": 0,
+  "NavLastID": 4,
+  "NavLastData": "nodata",
+  "NavFirstIDDefaultValue": -999,
+  "NavTextList": ["Index", "Web page", "Pc Page", "Mobile Page"],
+  "NavEachText": ["Index", "Web page", "Pc Page", "Mobile Page"],
+  "NavEachTextEmpty": ["Index", "Web page", "Pc Page", "Mobile Page"],
+  "NavEachTextEmptyNoData": ["nodata", "nodata"],
+  "NavEachAttrID": ["", "2", "3", "4"],
+  "NavEachAttrEmptyID": ["-1", "2", "3", "4"],
+  "NavEachHtml": [
+    "<a href=\"/\">Index</a>",
+    "<a href=\"/\">Index</a>",
+    "<a href=\"/\">Index</a>",
+    "<a href=\"/\">Index</a>"
+  ],
+  "NavEachOutHtml": [
+    "<li id=\"\"><a href=\"/\">Index</a></li>",
+    "<li id=\"\"><a href=\"/\">Index</a></li>",
+    "<li id=\"\"><a href=\"/\">Index</a></li>",
+    "<li id=\"\"><a href=\"/\">Index</a></li>"
+  ],
+  "NavJoinString": "Index|Web page|Pc Page|Mobile Page",
+  "NavEqText": "Web page",
+  "NavEqAttr": "2",
+  "NavEqHtml": "<a href=\"/list/web\" title=\"web site\">Web page</a>",
+  "NavEqOutHtml": "<li id=\"2\"><a href=\"/list/web\" title=\"web site\">Web page</a></li>",
+  "NavSize": 4,
+  "SubPageData": {
+    "Text": "Mobile Page",
+    "SubFuncValue": "SubFunc-Mobile Page",
+    "ParentFuncValue": "ParentFunc-Mobile Page",
+    "SameFuncValue": "Sub-Struct-Same-Func-Mobile Page"
+  },
+  "SubPageDataList": [
+    {
+      "Text": "Index",
+      "SubFuncValue": "SubFunc-Index",
+      "ParentFuncValue": "ParentFunc-Index",
+      "SameFuncValue": "Sub-Struct-Same-Func-Index"
+    },
+    {
+      "Text": "Web page",
+      "SubFuncValue": "SubFunc-Web page",
+      "ParentFuncValue": "ParentFunc-Web page",
+      "SameFuncValue": "Sub-Struct-Same-Func-Web page"
+    },
+    {
+      "Text": "Pc Page",
+      "SubFuncValue": "SubFunc-Pc Page",
+      "ParentFuncValue": "ParentFunc-Pc Page",
+      "SameFuncValue": "Sub-Struct-Same-Func-Pc Page"
+    },
+    {
+      "Text": "Mobile Page",
+      "SubFuncValue": "SubFunc-Mobile Page",
+      "ParentFuncValue": "ParentFunc-Mobile Page",
+      "SameFuncValue": "Sub-Struct-Same-Func-Mobile Page"
+    }
+  ],
+  "WordsSplitArray": ["A", "B", "C", "D"],
+  "WordsSplitArrayNoTrim": ["A", "B", "C", "D"],
+  "WordsShow": true,
+  "WordsConcatText": "this is words:[A|B|C|D]",
+  "WordsConcatAttr": "isShow = [true]",
+  "Email": "pagser@foolin.github",
+  "Emails": ["pagser@foolin.github", "pagser@foolin.github"],
+  "CastBoolValue": true,
+  "CastBoolNoExist": false,
+  "CastBoolArray": [true, false],
+  "CastIntValue": 12345,
+  "CastIntNoExist": -1,
+  "CastIntArray": [12345, 67890],
+  "CastInt32Value": 12345,
+  "CastInt32NoExist": -1,
+  "CastInt32Array": [12345, 67890],
+  "CastInt64Value": 12345,
+  "CastInt64NoExist": -1,
+  "CastInt64Array": [12345, 67890],
+  "CastFloat32Value": 123.45,
+  "CastFloat32NoExist": 0,
+  "CastFloat32Array": [123.45, 678.9],
+  "CastFloat64Value": 123.45,
+  "CastFloat64NoExist": 0,
+  "CastFloat64Array": [123.45, 678.9],
+  "NodeChild": [
+    {"Value": "Email"},
+    {"Value": "pagser@foolin.github\n\t\t\thello@pagser.foolin"},
+    {"Value": "Bool"},
+    {"Value": "true\n\t\t\tfalse"},
+    {"Value": "Number"},
+    {"Value": "12345\n\t\t\t67890"},
+    {"Value": "Float"},
+    {"Value": "123.45\n\t\t\t678.90"}
+  ],
+  "NodeChildSelector": [
+    {"Value": "Email"},
+    {"Value": "Bool"},
+    {"Value": "Number"},
+    {"Value": "Float"}
+  ],
+  "NodeEqFirst": {"Value": "Email"},
+  "NodeEqLast": {"Value": "Float"},
+  "NodeEqPrev": [
+    {"Value": "pagser@foolin.github"},
+    {"Value": "true"},
+    {"Value": "12345"},
+    {"Value": "123.45"}
+  ],
+  "NodeEqPrevSelector": {"Value": "pagser@foolin.github"},
+  "NodeEqNext": [
+    {"Value": "hello@pagser.foolin"},
+    {"Value": "false"},
+    {"Value": "67890"},
+    {"Value": "678.90"}
+  ],
+  "NodeEqNextSelector": {"Value": "hello@pagser.foolin"},
+  "NodeParent": [
+    {"Value": "Email"},
+    {"Value": "Bool"},
+    {"Value": "Number"},
+    {"Value": "Float"}
+  ],
+  "NodeParents": [
+    {"Value": "Email"},
+    {"Value": "EmailBoolNumberFloat"},
+    {"Value": "EmailBoolNumberFloat"},
+    {"Value": "Bool"},
+    {"Value": "Number"},
+    {"Value": "Float"}
+  ],
+  "NodeParentsSelector": [{"Value": "Bool"}],
+  "NodeParentsUntil": [
+    {"Value": "Email"},
+    {"Value": "EmailBoolNumberFloat"},
+    {"Value": "EmailBoolNumberFloat"},
+    {"Value": "Number"},
+    {"Value": "Float"}
+  ],
+  "NodeParentSelector": [{"Value": "Email"}],
+  "NodeEqSiblings": [
+    {"Value": "hello@pagser.foolin"},
+    {"Value": "false"},
+    {"Value": "67890"},
+    {"Value": "678.90"}
+  ],
+  "NodeEqSiblingsSelector": [{"Value": "hello@pagser.foolin"}]
+}
+`
+
 type ParseData struct {
 	Title               string   `pagser:"title"`
 	Keywords            []string `pagser:"meta[name='keywords']->attrSplit(content)"`
@@ -81,7 +301,7 @@ type ParseData struct {
 	MyGlobalFuncValue   string   `pagser:"h1->MyGlobFunc()"`
 	MyStructFuncValue   string   `pagser:"h1->MyStructFunc()"`
 	FillFieldFuncValue  string   `pagser:"h1->FillFieldFunc()"`
-	FillFieldOtherValue string   //Set value by FillFieldFunc()
+	FillFieldOtherValue string   // Set value by FillFieldFunc()
 	NavList             []struct {
 		ID   int `pagser:"->attrEmpty(id, -1)"`
 		Link struct {
@@ -256,16 +476,32 @@ type HttpBinData struct {
 
 func TestParse(t *testing.T) {
 	p := New()
-	//register global function
+	// register global function
 	p.RegisterFunc("MyGlobFunc", MyGlobalFunc)
 	p.RegisterFunc("SameFunc", SameFunc)
 
 	var data ParseData
 	err := p.Parse(&data, rawParseHtml)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
+	parseDataJson, err := json.Marshal(data)
+	require.NoError(t, err)
+
+	require.JSONEq(t, expectedParseDataJson, string(parseDataJson))
+
 	fmt.Printf("json: %v\n", prettyJson(data))
+}
+
+func TestParse_TargetNotStruct(t *testing.T) {
+	p := New()
+	// register global function
+	p.RegisterFunc("MyGlobFunc", MyGlobalFunc)
+	p.RegisterFunc("SameFunc", SameFunc)
+
+	var target string
+	err := p.Parse(&target, rawParseHtml)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not a struct")
 }
 
 func TestPagser_ParseDocument(t *testing.T) {
@@ -280,7 +516,7 @@ func TestPagser_ParseDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	//register global function
+	// register global function
 	p.RegisterFunc("MyGlobFunc", MyGlobalFunc)
 	p.RegisterFunc("SameFunc", SameFunc)
 
@@ -290,7 +526,7 @@ func TestPagser_ParseDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = p.ParseDocument(&data, doc)
-	//err = p.ParseSelection(&data, doc.Selection)
+	// err = p.ParseSelection(&data, doc.Selection)
 	if err != nil {
 		t.Fatal(err)
 	}
