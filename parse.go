@@ -76,8 +76,12 @@ func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selecti
 }
 
 func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
-	// newPtr := reflect.New(val.Type().Elem())
-	// val.Set(newPtr)
+	// If the pointer value is nil, create a new non-nil pointer to the underlying type
+	if val.IsNil() {
+		underlyingType := val.Type().Elem()
+		newPtr := reflect.New(underlyingType)
+		val.Set(newPtr)
+	}
 
 	err := p.doParse(reflect.Indirect(val), stackValues, selection)
 	if err != nil {
@@ -91,7 +95,6 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 	for i := 0; i < val.NumField(); i++ {
 		fieldValue := val.Field(i)
 		fieldType := val.Type().Field(i)
-		fieldKind := fieldType.Type.Kind()
 
 		// tagValue := fieldType.Tag.Get(parserTagName)
 		tagValue, tagOk := fieldType.Tag.Lookup(p.Config.TagName)
@@ -148,14 +151,8 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 		}
 		stackValues = append(stackValues, val)
 
-		switch {
-		case fieldKind == reflect.Pointer:
-			subModel := reflect.New(fieldType.Type.Elem())
-			fieldValue.Set(subModel)
-			err = p.doParse(subModel, stackValues, node)
-		default:
-			err = p.doParse(fieldValue, stackValues, node)
-		}
+		// Do parse on struct field
+		err = p.doParse(fieldValue, stackValues, node)
 		if err != nil {
 			return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, fieldValue, err)
 		}
