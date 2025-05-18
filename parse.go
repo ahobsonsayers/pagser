@@ -54,12 +54,22 @@ func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) (er
 }
 
 // ParseSelection parse selection to struct
-func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
 	switch val.Kind() {
 	case reflect.Pointer:
 		return p.doParsePointer(val, stackValues, selection)
 	case reflect.Struct:
 		return p.doParseStruct(val, stackValues, selection)
+	case reflect.Slice:
+		return p.doParseSlice(val, stackValues, selection)
+	default:
+		// UnsafePointer
+		// Complex64
+		// Complex128
+		// Array
+		// Chan
+		// Func
+		val.SetString(strings.TrimSpace(selection.Text()))
 	}
 
 	return nil
@@ -195,6 +205,43 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 			fieldValue.SetString(strings.TrimSpace(node.Text()))
 		}
 	}
+	return nil
+}
+
+func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+	sliceType := val.Type()
+	itemType := sliceType.Elem()
+	itemKind := itemType.Kind()
+	slice := reflect.MakeSlice(sliceType, selection.Size(), selection.Size())
+	selection.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
+		// outhtml, _ := goquery.OuterHtml(subNode)
+		// log.Printf("%v => %v", i, outhtml)
+		itemValue := reflect.New(itemType).Elem()
+		switch {
+		case itemKind == reflect.Struct:
+			err = p.doParse(itemValue.Addr(), stackValues, subNode)
+			if err != nil {
+				// err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
+				return false
+			}
+		case itemKind == reflect.Ptr && itemValue.Type().Elem().Kind() == reflect.Struct:
+			itemValue = reflect.New(itemType.Elem())
+			err = p.doParse(itemValue, stackValues, subNode)
+			if err != nil {
+				// err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
+				return false
+			}
+		default:
+			itemValue.SetString(strings.TrimSpace(subNode.Text()))
+		}
+		slice.Index(i).Set(itemValue)
+		return true
+	})
+	if err != nil {
+		return err
+	}
+
+	val.Set(slice)
 
 	return nil
 }
