@@ -58,8 +58,23 @@ func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selecti
 	switch val.Kind() {
 	case reflect.Pointer:
 		return p.doParsePointer(val, stackValues, selection)
+	case reflect.Struct:
+		return p.doParseStruct(val, stackValues, selection)
 	}
 
+	return nil
+}
+
+func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
+	err = p.doParse(reflect.Indirect(val), stackValues, selection)
+	if err != nil {
+		return err
+		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
+	}
+	return nil
+}
+
+func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
 	for i := 0; i < val.NumField(); i++ {
 		fieldValue := val.Field(i)
 		fieldType := val.Type().Field(i)
@@ -180,15 +195,7 @@ func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selecti
 			fieldValue.SetString(strings.TrimSpace(node.Text()))
 		}
 	}
-	return nil
-}
 
-func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
-	err = p.doParse(reflect.Indirect(val), stackValues, selection)
-	if err != nil {
-		return err
-		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
-	}
 	return nil
 }
 
