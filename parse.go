@@ -86,7 +86,6 @@ func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, 
 	err := p.doParse(reflect.Indirect(val), stackValues, selection)
 	if err != nil {
 		return err
-		// return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 	}
 	return nil
 }
@@ -161,39 +160,19 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 }
 
 func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) (err error) {
-	sliceType := val.Type()
-	itemType := sliceType.Elem()
-	itemKind := itemType.Kind()
-	slice := reflect.MakeSlice(sliceType, selection.Size(), selection.Size())
+	newSlice := reflect.MakeSlice(val.Type(), selection.Size(), selection.Size())
+
 	selection.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
-		// outhtml, _ := goquery.OuterHtml(subNode)
-		// log.Printf("%v => %v", i, outhtml)
-		itemValue := reflect.New(itemType).Elem()
-		switch {
-		case itemKind == reflect.Struct:
-			err = p.doParse(itemValue.Addr(), stackValues, subNode)
-			if err != nil {
-				// err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
-				return false
-			}
-		case itemKind == reflect.Ptr && itemValue.Type().Elem().Kind() == reflect.Struct:
-			itemValue = reflect.New(itemType.Elem())
-			err = p.doParse(itemValue, stackValues, subNode)
-			if err != nil {
-				// err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
-				return false
-			}
-		default:
-			itemValue.SetString(strings.TrimSpace(subNode.Text()))
-		}
-		slice.Index(i).Set(itemValue)
-		return true
+		// Do parse on slice item
+		itemValue := newSlice.Index(i)
+		err = p.doParse(itemValue, stackValues, subNode)
+		return err == nil
 	})
 	if err != nil {
 		return err
 	}
 
-	val.Set(slice)
+	val.Set(newSlice)
 
 	return nil
 }
