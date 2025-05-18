@@ -35,34 +35,32 @@ func (p *Pagser) ParseDocument(v interface{}, document *goquery.Document) (err e
 
 // ParseSelection parse selection to struct
 func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) (err error) {
-	return p.doParse(v, nil, selection)
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Ptr {
+		return fmt.Errorf("%v is non-pointer", val.Type())
+	}
+
+	if val.IsNil() {
+		return fmt.Errorf("%v is nil", val.Type())
+	}
+
+	elem := val.Elem()
+
+	if elem.Kind() != reflect.Struct {
+		return fmt.Errorf("%v is not a struct", elem.Type())
+	}
+
+	return p.doParse(val, nil, selection)
 }
 
 // ParseSelection parse selection to struct
-func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selection *goquery.Selection) (err error) {
-	objRefType := reflect.TypeOf(v)
-	objRefValue := reflect.ValueOf(v)
+func (p *Pagser) doParse(val reflect.Value, stackRefValues []reflect.Value, selection *goquery.Selection) (err error) {
+	elem := val.Elem()
 
-	// log.Printf("%#v kind is %v | %v", v, objRefValue.Kind(), reflect.Ptr)
-	if objRefValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("%v is non-pointer", objRefType)
-	}
-
-	if objRefValue.IsNil() {
-		return fmt.Errorf("%v is nil", objRefType)
-	}
-
-	objRefTypeElem := objRefType.Elem()
-	objRefValueElem := objRefValue.Elem()
-
-	if objRefValueElem.Kind() != reflect.Struct {
-		return fmt.Errorf("%v is not a struct", objRefTypeElem)
-	}
-
-	for i := 0; i < objRefValueElem.NumField(); i++ {
-		fieldType := objRefTypeElem.Field(i)
-		fieldValue := objRefValueElem.Field(i)
-		kind := fieldType.Type.Kind()
+	for i := 0; i < elem.NumField(); i++ {
+		fieldValue := elem.Field(i)
+		fieldType := elem.Type().Field(i)
+		fieldKind := fieldType.Type.Kind()
 
 		// tagValue := fieldType.Tag.Get(parserTagName)
 		tagValue, tagOk := fieldType.Tag.Lookup(p.Config.TagName)
@@ -97,7 +95,7 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 		var callOutValue interface{}
 		var callErr error
 		if tag.FuncName != "" {
-			callOutValue, callErr = p.findAndExecFunc(objRefValueElem, stackRefValues, tag, node)
+			callOutValue, callErr = p.findAndExecFunc(elem, stackRefValues, tag, node)
 			if callErr != nil {
 				return fmt.Errorf("tag=`%v` parse func error: %v", tagValue, callErr)
 			}
@@ -117,19 +115,19 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 		if stackRefValues == nil {
 			stackRefValues = make([]reflect.Value, 0)
 		}
-		stackRefValues = append(stackRefValues, objRefValue)
+		stackRefValues = append(stackRefValues, elem)
 
 		// set value
 		switch {
-		case kind == reflect.Ptr:
+		case fieldKind == reflect.Ptr:
 			subModel := reflect.New(fieldType.Type.Elem())
 			fieldValue.Set(subModel)
-			err = p.doParse(subModel.Interface(), stackRefValues, node)
+			err = p.doParse(subModel, stackRefValues, node)
 			if err != nil {
 				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 			}
 			// Slice
-		case kind == reflect.Slice:
+		case fieldKind == reflect.Slice:
 			sliceType := fieldValue.Type()
 			itemType := sliceType.Elem()
 			itemKind := itemType.Kind()
@@ -140,14 +138,14 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 				itemValue := reflect.New(itemType).Elem()
 				switch {
 				case itemKind == reflect.Struct:
-					err = p.doParse(itemValue.Addr().Interface(), stackRefValues, subNode)
+					err = p.doParse(itemValue.Addr(), stackRefValues, subNode)
 					if err != nil {
 						err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
 						return false
 					}
 				case itemKind == reflect.Ptr && itemValue.Type().Elem().Kind() == reflect.Struct:
 					itemValue = reflect.New(itemType.Elem())
-					err = p.doParse(itemValue.Interface(), stackRefValues, subNode)
+					err = p.doParse(itemValue, stackRefValues, subNode)
 					if err != nil {
 						err = fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, itemValue, err)
 						return false
@@ -162,9 +160,9 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 				return err
 			}
 			fieldValue.Set(slice)
-		case kind == reflect.Struct:
+		case fieldKind == reflect.Struct:
 			subModel := reflect.New(fieldType.Type)
-			err = p.doParse(subModel.Interface(), stackRefValues, node)
+			err = p.doParse(subModel, stackRefValues, node)
 			if err != nil {
 				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 			}
