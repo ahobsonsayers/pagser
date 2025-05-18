@@ -97,7 +97,7 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 		var callOutValue interface{}
 		var callErr error
 		if tag.FuncName != "" {
-			callOutValue, callErr = p.findAndExecFunc(objRefValue, stackRefValues, tag, node)
+			callOutValue, callErr = p.findAndExecFunc(objRefValueElem, stackRefValues, tag, node)
 			if callErr != nil {
 				return fmt.Errorf("tag=`%v` parse func error: %v", tagValue, callErr)
 			}
@@ -187,11 +187,11 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 fieldType := refTypeElem.Field(i)
 fieldValue := refValueElem.Field(i)
 */
-func (p *Pagser) findAndExecFunc(objRefValue reflect.Value, stackRefValues []reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
+func (p *Pagser) findAndExecFunc(objRefValueElem reflect.Value, stackRefValues []reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
 	if selTag.FuncName != "" {
 
 		// call object method
-		callMethod := findMethod(objRefValue, selTag.FuncName)
+		callMethod := findMethod(objRefValueElem, selTag.FuncName)
 		if callMethod.IsValid() {
 			// execute method
 			return execMethod(callMethod, selTag, node)
@@ -225,13 +225,13 @@ func (p *Pagser) findAndExecFunc(objRefValue reflect.Value, stackRefValues []ref
 	return strings.TrimSpace(node.Text()), nil
 }
 
-func findMethod(objRefValue reflect.Value, funcName string) reflect.Value {
-	callMethod := objRefValue.MethodByName(funcName)
+func findMethod(objRefValueElem reflect.Value, funcName string) reflect.Value {
+	callMethod := objRefValueElem.MethodByName(funcName)
 	if callMethod.IsValid() {
 		return callMethod
 	}
 	// call element method
-	return objRefValue.Elem().MethodByName(funcName)
+	return objRefValueElem.MethodByName(funcName)
 }
 
 func execMethod(callMethod reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
