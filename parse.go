@@ -43,7 +43,7 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 	objRefType := reflect.TypeOf(v)
 	objRefValue := reflect.ValueOf(v)
 
-	//log.Printf("%#v kind is %v | %v", v, objRefValue.Kind(), reflect.Ptr)
+	// log.Printf("%#v kind is %v | %v", v, objRefValue.Kind(), reflect.Ptr)
 	if objRefValue.Kind() != reflect.Ptr {
 		return fmt.Errorf("%v is non-pointer", objRefType)
 	}
@@ -55,12 +55,16 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 	objRefTypeElem := objRefType.Elem()
 	objRefValueElem := objRefValue.Elem()
 
+	if objRefValueElem.Kind() != reflect.Struct {
+		return fmt.Errorf("%v is not a struct", objRefTypeElem)
+	}
+
 	for i := 0; i < objRefValueElem.NumField(); i++ {
 		fieldType := objRefTypeElem.Field(i)
 		fieldValue := objRefValueElem.Field(i)
 		kind := fieldType.Type.Kind()
 
-		//tagValue := fieldType.Tag.Get(parserTagName)
+		// tagValue := fieldType.Tag.Get(parserTagName)
 		tagValue, tagOk := fieldType.Tag.Lookup(p.Config.TagName)
 		if !tagOk {
 			if p.Config.Debug {
@@ -98,14 +102,14 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 				return fmt.Errorf("tag=`%v` parse func error: %v", tagValue, callErr)
 			}
 			if subNode, ok := callOutValue.(*goquery.Selection); ok {
-				//set sub node to current node
+				// set sub node to current node
 				node = subNode
 			} else {
 				svErr := p.setRefectValue(fieldType.Type.Kind(), fieldValue, callOutValue)
 				if svErr != nil {
 					return fmt.Errorf("tag=`%v` set value error: %v", tagValue, svErr)
 				}
-				//goto parse next field
+				// goto parse next field
 				continue
 			}
 		}
@@ -115,7 +119,7 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 		}
 		stackRefValues = append(stackRefValues, objRefValue)
 
-		//set value
+		// set value
 		switch {
 		case kind == reflect.Ptr:
 			subModel := reflect.New(fieldType.Type.Elem())
@@ -124,15 +128,15 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 			if err != nil {
 				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 			}
-			//Slice
+			// Slice
 		case kind == reflect.Slice:
 			sliceType := fieldValue.Type()
 			itemType := sliceType.Elem()
 			itemKind := itemType.Kind()
 			slice := reflect.MakeSlice(sliceType, node.Size(), node.Size())
 			node.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
-				//outhtml, _ := goquery.OuterHtml(subNode)
-				//log.Printf("%v => %v", i, outhtml)
+				// outhtml, _ := goquery.OuterHtml(subNode)
+				// log.Printf("%v => %v", i, outhtml)
 				itemValue := reflect.New(itemType).Elem()
 				switch {
 				case itemKind == reflect.Struct:
@@ -165,12 +169,12 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 				return fmt.Errorf("tag=`%v` %#v parser error: %v", tagValue, subModel, err)
 			}
 			fieldValue.Set(subModel.Elem())
-			//UnsafePointer
-			//Complex64
-			//Complex128
-			//Array
-			//Chan
-			//Func
+			// UnsafePointer
+			// Complex64
+			// Complex128
+			// Array
+			// Chan
+			// Func
 		default:
 			fieldValue.SetString(strings.TrimSpace(node.Text()))
 		}
@@ -178,33 +182,34 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 	return nil
 }
 
-/**
+/*
+*
 fieldType := refTypeElem.Field(i)
 fieldValue := refValueElem.Field(i)
 */
 func (p *Pagser) findAndExecFunc(objRefValue reflect.Value, stackRefValues []reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
 	if selTag.FuncName != "" {
 
-		//call object method
+		// call object method
 		callMethod := findMethod(objRefValue, selTag.FuncName)
 		if callMethod.IsValid() {
-			//execute method
+			// execute method
 			return execMethod(callMethod, selTag, node)
 		}
 
-		//call root method
+		// call root method
 		size := len(stackRefValues)
 		if size > 0 {
 			for i := size - 1; i >= 0; i-- {
 				callMethod = findMethod(stackRefValues[i], selTag.FuncName)
 				if callMethod.IsValid() {
-					//execute method
+					// execute method
 					return execMethod(callMethod, selTag, node)
 				}
 			}
 		}
 
-		//global function
+		// global function
 		if fn, ok := p.mapFuncs.Load(selTag.FuncName); ok {
 			cfn := fn.(CallFunc)
 			outValue, err := cfn(node, selTag.FuncParams...)
@@ -214,7 +219,7 @@ func (p *Pagser) findAndExecFunc(objRefValue reflect.Value, stackRefValues []ref
 			return outValue, nil
 		}
 
-		//not found method
+		// not found method
 		return nil, fmt.Errorf("not found method %v", selTag.FuncName)
 	}
 	return strings.TrimSpace(node.Text()), nil
@@ -225,7 +230,7 @@ func findMethod(objRefValue reflect.Value, funcName string) reflect.Value {
 	if callMethod.IsValid() {
 		return callMethod
 	}
-	//call element method
+	// call element method
 	return objRefValue.Elem().MethodByName(funcName)
 }
 
@@ -248,9 +253,9 @@ func execMethod(callMethod reflect.Value, selTag *tagTokenizer, node *goquery.Se
 }
 
 func (p Pagser) setRefectValue(kind reflect.Kind, fieldValue reflect.Value, v interface{}) (err error) {
-	//set value
+	// set value
 	switch {
-	//Bool
+	// Bool
 	case kind == reflect.Bool:
 		if p.Config.CastError {
 			kv, err := cast.ToBoolE(v)
@@ -378,11 +383,11 @@ func (p Pagser) setRefectValue(kind reflect.Kind, fieldValue reflect.Value, v in
 				fieldValue.Set(reflect.ValueOf(v))
 			}
 		}
-	//case kind == reflect.Interface:
+	// case kind == reflect.Interface:
 	//	fieldValue.Set(reflect.ValueOf(v))
 	default:
 		fieldValue.Set(reflect.ValueOf(v))
-		//return fmt.Errorf("not support type %v", kind)
+		// return fmt.Errorf("not support type %v", kind)
 	}
 	return nil
 }
