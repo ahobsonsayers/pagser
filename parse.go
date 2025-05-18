@@ -182,56 +182,63 @@ func (p *Pagser) doParse(v interface{}, stackRefValues []reflect.Value, selectio
 	return nil
 }
 
-/*
-*
-fieldType := refTypeElem.Field(i)
-fieldValue := refValueElem.Field(i)
-*/
-func (p *Pagser) findAndExecFunc(objRefValueElem reflect.Value, stackRefValues []reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
-	if selTag.FuncName != "" {
-
-		// call object method
-		callMethod := findMethod(objRefValueElem, selTag.FuncName)
-		if callMethod.IsValid() {
-			// execute method
-			return execMethod(callMethod, selTag, node)
-		}
-
-		// call root method
-		size := len(stackRefValues)
-		if size > 0 {
-			for i := size - 1; i >= 0; i-- {
-				callMethod = findMethod(stackRefValues[i], selTag.FuncName)
-				if callMethod.IsValid() {
-					// execute method
-					return execMethod(callMethod, selTag, node)
-				}
-			}
-		}
-
-		// global function
-		if fn, ok := p.mapFuncs.Load(selTag.FuncName); ok {
-			cfn := fn.(CallFunc)
-			outValue, err := cfn(node, selTag.FuncParams...)
-			if err != nil {
-				return nil, fmt.Errorf("call registered func %v error: %v", selTag.FuncName, err)
-			}
-			return outValue, nil
-		}
-
-		// not found method
-		return nil, fmt.Errorf("not found method %v", selTag.FuncName)
+func (p *Pagser) findAndExecFunc(val reflect.Value, stackValues []reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
+	// If function not set, return node as tring
+	if selTag.FuncName == "" {
+		return strings.TrimSpace(node.Text()), nil
 	}
-	return strings.TrimSpace(node.Text()), nil
+
+	// Try to find function in the methods of the value or its pointer, calling it if found
+	callMethod := findMethod(val, selTag.FuncName)
+	if callMethod.IsValid() {
+		return execMethod(callMethod, selTag, node)
+	}
+
+	// Try to find function in the methods of the parent values or their pointers, calling it if found
+	size := len(stackValues)
+	if size > 0 {
+		for i := size - 1; i >= 0; i-- {
+			callMethod = findMethod(stackValues[i], selTag.FuncName)
+			if callMethod.IsValid() {
+				return execMethod(callMethod, selTag, node)
+			}
+		}
+	}
+
+	// Try to find function in the globally registered functions, calling it if found
+	if fn, ok := p.mapFuncs.Load(selTag.FuncName); ok {
+		cfn := fn.(CallFunc)
+		outValue, err := cfn(node, selTag.FuncParams...)
+		if err != nil {
+			return nil, fmt.Errorf("call registered func %v error: %v", selTag.FuncName, err)
+		}
+		return outValue, nil
+	}
+
+	return nil, fmt.Errorf("method not found: %v", selTag.FuncName)
 }
 
-func findMethod(objRefValueElem reflect.Value, funcName string) reflect.Value {
-	callMethod := objRefValueElem.MethodByName(funcName)
+// findMethod finds a function in the methods of a value or its pointer.
+// Value passed should not be a pointer.
+// If function is not found a zero value will be returned
+func findMethod(val reflect.Value, funcName string) reflect.Value {
+	// Try to find method on value
+	callMethod := val.MethodByName(funcName)
 	if callMethod.IsValid() {
 		return callMethod
 	}
-	// call element method
-	return objRefValueElem.MethodByName(funcName)
+
+	// Try to find method on pointer to value
+	if val.CanAddr() {
+		valPtr := val.Addr()
+		callMethod = valPtr.MethodByName(funcName)
+		if callMethod.IsValid() {
+			return callMethod
+		}
+	}
+
+	// If method still not found, return a zero value
+	return reflect.Value{}
 }
 
 func execMethod(callMethod reflect.Value, selTag *tagTokenizer, node *goquery.Selection) (interface{}, error) {
