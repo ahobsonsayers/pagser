@@ -143,7 +143,7 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 				// set sub node to current node
 				node = subNode
 			} else {
-				svErr := p.setRefectValue(fieldType.Type.Kind(), fieldValue, callOutValue)
+				svErr := p.setFieldValue(fieldValue, callOutValue)
 				if svErr != nil {
 					return fmt.Errorf("tag=`%v` set value error: %v", tagValue, svErr)
 				}
@@ -191,6 +191,64 @@ func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, se
 	if newSlice {
 		val.Set(slice)
 	}
+
+	return nil
+}
+
+func (p *Pagser) setFieldValue(fieldValue reflect.Value, value interface{}) error {
+	var castValueInterface any
+	var err error
+	switch fieldValue.Kind() {
+	case reflect.Bool:
+		castValueInterface, err = cast.ToBoolE(value)
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		castValueInterface, err = cast.ToInt64E(value)
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		castValueInterface, err = cast.ToUint64E(value)
+
+	case reflect.Float32, reflect.Float64:
+		castValueInterface, err = cast.ToFloat64E(value)
+
+	case reflect.String:
+		castValueInterface, err = cast.ToStringE(value)
+
+	case reflect.Slice, reflect.Array:
+		// Run nested switch on item type
+		switch fieldValue.Type().Elem().Kind() {
+		case reflect.Bool:
+			castValueInterface, err = cast.ToBoolSliceE(value)
+		case reflect.Int:
+			castValueInterface, err = cast.ToIntSliceE(value)
+		case reflect.Int32:
+			castValueInterface, err = toInt32SliceE(value)
+		case reflect.Int64:
+			castValueInterface, err = toInt64SliceE(value)
+		case reflect.Float32:
+			castValueInterface, err = toFloat32SliceE(value)
+		case reflect.Float64:
+			castValueInterface, err = toFloat64SliceE(value)
+		case reflect.String:
+			castValueInterface, err = cast.ToStringSliceE(value)
+		default:
+			castValueInterface = value
+		}
+	default:
+		castValueInterface = value
+	}
+	if err != nil && p.Config.CastError {
+		return err
+	}
+
+	// Get the reflect value of cast value, converting it if required
+	castReflectValue := reflect.ValueOf(castValueInterface)
+	fieldType := fieldValue.Type()
+	if castReflectValue.Type() != fieldType && castReflectValue.CanConvert(fieldType) {
+		castReflectValue = castReflectValue.Convert(fieldType)
+	}
+
+	fieldValue.Set(castReflectValue)
 
 	return nil
 }
@@ -270,144 +328,4 @@ func execMethod(callMethod reflect.Value, selTag *tagTokenizer, node *goquery.Se
 		}
 	}
 	return callReturns[0].Interface(), nil
-}
-
-func (p Pagser) setRefectValue(kind reflect.Kind, fieldValue reflect.Value, v interface{}) (err error) {
-	// set value
-	switch {
-	// Bool
-	case kind == reflect.Bool:
-		if p.Config.CastError {
-			kv, err := cast.ToBoolE(v)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetBool(kv)
-		} else {
-			fieldValue.SetBool(cast.ToBool(v))
-		}
-	case kind >= reflect.Int && kind <= reflect.Int64:
-		if p.Config.CastError {
-			kv, err := cast.ToInt64E(v)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetInt(kv)
-		} else {
-			fieldValue.SetInt(cast.ToInt64(v))
-		}
-	case kind >= reflect.Uint && kind <= reflect.Uintptr:
-		if p.Config.CastError {
-			kv, err := cast.ToUint64E(v)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetUint(kv)
-		} else {
-			fieldValue.SetUint(cast.ToUint64(v))
-		}
-	case kind == reflect.Float32 || kind == reflect.Float64:
-		if p.Config.CastError {
-			value, err := cast.ToFloat64E(v)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetFloat(value)
-		} else {
-			fieldValue.SetFloat(cast.ToFloat64(v))
-		}
-	case kind == reflect.String:
-		if p.Config.CastError {
-			kv, err := cast.ToStringE(v)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetString(kv)
-		} else {
-			fieldValue.SetString(cast.ToString(v))
-		}
-	case kind == reflect.Slice || kind == reflect.Array:
-		sliceType := fieldValue.Type().Elem()
-		itemKind := sliceType.Kind()
-		if p.Config.CastError {
-			switch itemKind {
-			case reflect.Bool:
-				kv, err := cast.ToBoolSliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int:
-				kv, err := cast.ToIntSliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int32:
-				kv, err := toInt32SliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int64:
-				kv, err := toInt64SliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Float32:
-				kv, err := toFloat32SliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Float64:
-				kv, err := toFloat64SliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.String:
-				kv, err := cast.ToStringSliceE(v)
-				if err != nil {
-					return err
-				}
-				fieldValue.Set(reflect.ValueOf(kv))
-			default:
-				fieldValue.Set(reflect.ValueOf(v))
-			}
-		} else {
-			switch itemKind {
-			case reflect.Bool:
-				kv := cast.ToBoolSlice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int:
-				kv := cast.ToIntSlice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int32:
-				kv := toInt32Slice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Int64:
-				kv := toInt64Slice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Float32:
-				kv := toFloat32Slice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.Float64:
-				kv := toFloat64Slice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			case reflect.String:
-				kv := cast.ToStringSlice(v)
-				fieldValue.Set(reflect.ValueOf(kv))
-			default:
-				fieldValue.Set(reflect.ValueOf(v))
-			}
-		}
-	// case kind == reflect.Interface:
-	//	fieldValue.Set(reflect.ValueOf(v))
-	default:
-		fieldValue.Set(reflect.ValueOf(v))
-		// return fmt.Errorf("not support type %v", kind)
-	}
-	return nil
 }
