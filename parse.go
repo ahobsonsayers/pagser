@@ -167,11 +167,19 @@ func (p *Pagser) doParseStruct(val reflect.Value, stackValues []reflect.Value, s
 }
 
 func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
-	newSlice := reflect.MakeSlice(val.Type(), selection.Size(), selection.Size())
+	// Get slice to parse into, creating a new one if it is nil
+	slice := val
+	var newSlice bool
+	if slice.IsNil() {
+		slice = reflect.MakeSlice(val.Type(), selection.Size(), selection.Size())
+		newSlice = true
+	}
+
+	// Parse into slice
 	var err error
 	selection.EachWithBreak(func(i int, subNode *goquery.Selection) bool {
 		// Do parse on slice item
-		itemValue := newSlice.Index(i)
+		itemValue := slice.Index(i)
 		err = p.doParse(itemValue, stackValues, subNode)
 		return err == nil
 	})
@@ -179,7 +187,10 @@ func (p *Pagser) doParseSlice(val reflect.Value, stackValues []reflect.Value, se
 		return err
 	}
 
-	val.Set(newSlice)
+	// If we created a new slice, we need to set the val to it
+	if newSlice {
+		val.Set(slice)
+	}
 
 	return nil
 }
