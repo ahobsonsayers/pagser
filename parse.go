@@ -49,6 +49,9 @@ func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) err
 
 	// Check underlying type is a struct
 	elem := val.Elem()
+	if elem.Kind() == reflect.Interface {
+		elem = elem.Elem()
+	}
 	if elem.Kind() != reflect.Struct {
 		return fmt.Errorf("%v is not a struct", elem.Type())
 	}
@@ -60,6 +63,8 @@ func (p *Pagser) ParseSelection(v interface{}, selection *goquery.Selection) err
 // ParseSelection parse selection to struct
 func (p *Pagser) doParse(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
 	switch val.Kind() {
+	case reflect.Interface:
+		return p.doParseInterface(val, stackValues, selection)
 	case reflect.Pointer:
 		return p.doParsePointer(val, stackValues, selection)
 	case reflect.Struct:
@@ -88,9 +93,40 @@ func (p *Pagser) doParsePointer(val reflect.Value, stackValues []reflect.Value, 
 	}
 
 	// Parse into underlying value
-	err := p.doParse(reflect.Indirect(val), stackValues, selection)
+	underlyingValue := reflect.Indirect(val)
+	err := p.doParse(underlyingValue, stackValues, selection)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (p *Pagser) doParseInterface(val reflect.Value, stackValues []reflect.Value, selection *goquery.Selection) error {
+	// Get underlying value
+	underlyingValue := val.Elem()
+
+	// If the underlying value is not addressable, create a new non-nil pointer to the underlying type
+	// as set its value to the non-addressable value, thus making it writeable.
+	addressable := underlyingValue.CanAddr()
+	if !addressable {
+		underlyingType := underlyingValue.Type()
+		newPtr := reflect.New(underlyingType)
+		newPtr.Elem().Set(underlyingValue)
+
+		// Set value to be the new pointer
+		underlyingValue = newPtr
+	}
+
+	err := p.doParse(underlyingValue, stackValues, selection)
+	if err != nil {
+		return err
+	}
+
+	// If the underlying value wasn't initially addressable and we had to make a new addressable
+	// underlying value, we need to set the value of the interface to the new underlying value
+	if !addressable {
+		val.Set(underlyingValue.Elem())
 	}
 
 	return nil
