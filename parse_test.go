@@ -488,11 +488,27 @@ func TestParse(t *testing.T) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, expectedParseDataJson, string(parseDataJson))
-
 	fmt.Printf("json: %v\n", prettyJson(data))
 }
 
-func TestParse_TargetNotStruct(t *testing.T) {
+func TestParse_InterfaceTarget(t *testing.T) {
+	p := New()
+	// register global function
+	p.RegisterFunc("MyGlobFunc", MyGlobalFunc)
+	p.RegisterFunc("SameFunc", SameFunc)
+
+	var data interface{} = ParseData{}
+	err := p.Parse(&data, rawParseHtml)
+	require.NoError(t, err)
+
+	parseDataJson, err := json.Marshal(data)
+	require.NoError(t, err)
+
+	require.JSONEq(t, expectedParseDataJson, string(parseDataJson))
+	fmt.Printf("json: %v\n", prettyJson(data))
+}
+
+func TestParse_NonStructTarget(t *testing.T) {
 	p := New()
 	// register global function
 	p.RegisterFunc("MyGlobFunc", MyGlobalFunc)
